@@ -1,0 +1,50 @@
+name: Release Packages
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+      
+      - name: Install cargo-generate-rpm
+        run: cargo install cargo-generate-rpm
+      
+      - name: Build project
+        run: cargo build --release
+      
+      - name: Create DEB package
+        run: cargo deb
+      
+      - name: Create RPM package
+        run: cargo generate-rpm
+      
+      - name: Get version
+        id: get_version
+        run: echo "version=$(cargo metadata --format-version 1 | jq -r '.packages[0].version')" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            target/release/rpmbuild/RPMS/x86_64/*.rpm
+            target/debian/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
